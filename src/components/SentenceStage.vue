@@ -24,8 +24,8 @@ const props = withDefaults(
   }>(),
   {
     error: false,
-    charDelayMs: 55,
-    pauseMs: 420,
+    charDelayMs: 80,
+    pauseMs: 620,
   },
 )
 
