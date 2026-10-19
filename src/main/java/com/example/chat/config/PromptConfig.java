@@ -21,8 +21,7 @@ public class PromptConfig {
 
     private static String buildHealthAgentPrompt() {
         // 枚举白名单动态生成（与 Java 枚举永远一致）
-        String emotion = Arrays.stream(Emotion.values())
-                .map(Enum::name).collect(Collectors.joining(", "));
+        String emotions = Emotion.allLabels();
 
 //        # 核心原则（伙伴模式）
 //        以损友的方式回复用户
@@ -41,7 +40,7 @@ public class PromptConfig {
         reply 不能包含换行符 \\n。
         aiEmotionIntensity 是 1-10 的整数，aiEmotion 必须贴合本句内容，随语气变化。
         只输出 JSONL：从第一行到最后一行都是 JSON。
-        """.formatted(emotion);
+        """.formatted(emotions);
 
         System.out.println(res);
         return res;

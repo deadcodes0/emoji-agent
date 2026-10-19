@@ -210,10 +210,11 @@ public class ChatService {
 
     /** 单句处理：枚举校验 + 强度 clamp + emoji 映射 */
     private void handleSentence(Session s, AiSentence dto) {
-        Emotion ae = Emotion.fromName(dto.aiEmotion());
+
+        Emotion ae = Emotion.fromLabel(dto.aiEmotion());
         // 高风险上下文禁用 PLAYFULNESS（规则引擎前置判定）
-        if (s.ruleRisk.isHighOrCritical() && ae == Emotion.PLAYFULNESS) {
-            ae = Emotion.SERIOUS;
+        if (s.ruleRisk.isHighOrCritical() && (ae == Emotion.PLAYFULNESS_1 || ae == Emotion.PLAYFULNESS_2)) {
+            ae = Emotion.TALKING;
         }
         int intensity = clamp(dto.aiEmotionIntensity());
         String reply = sanitizeReply(dto.reply());
@@ -231,7 +232,7 @@ public class ChatService {
         }
         s.doneEmitted = true;
 
-        Emotion ue = Emotion.fromName(dto.userEmotion());
+        Emotion ue = Emotion.fromLabel(dto.aiEmotion());
         int ui = clamp(dto.userEmotionIntensity());
 
         RiskLevel aiRisk = RiskLevel.fromName(dto.riskLevel());
@@ -254,7 +255,7 @@ public class ChatService {
             if (s.sentenceCount == 0) {
                 emit(s, "sentence", new SentenceEvent(0,
                         "谢谢你愿意和我分享这些，我一直在听。",
-                        Emotion.GENTLE.name(), 5, EmojiUtil.pick(Emotion.GENTLE, 5)));
+                        Emotion.COMFORT.name(), 5, EmojiUtil.pick(Emotion.COMFORT, 5)));
                 s.sentenceCount = 1;
             }
             RiskLevel finalRisk = RiskLevel.max(RiskLevel.MEDIUM, s.ruleRisk);
@@ -276,7 +277,7 @@ public class ChatService {
         crisisService.audit(s.userId, s.requestId, finalRisk.name(), s.userMsg);
         emit(s, "sentence", new SentenceEvent(
                 s.sentenceCount++, CrisisService.CRISIS_MESSAGE,
-                Emotion.SERIOUS.name(), 8, EmojiUtil.pick(Emotion.SERIOUS, 8)));
+                Emotion.TALKING.name(), 8, EmojiUtil.pick(Emotion.TALKING, 8)));
     }
 
     private void finishSession(Session s) {

@@ -21,11 +21,9 @@ public class EmojiUtil {
         if (emoji == null) {
             return Emoji.UNKNOWN.getKey();
         }
-        int i = Math.max(MIN, Math.min(MAX, intensity));
-        int m = (i - 1) * emoji.getCount() / 10 + 1;
         if (emoji.getKey().equals(Emoji.UNKNOWN.getKey())) {
             return emoji.getKey();
         }
-        return emoji.getKey() + "_"  + m;
+        return emoji.getKey();
     }
 }
