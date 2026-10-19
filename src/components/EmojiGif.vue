@@ -4,8 +4,8 @@
     <!-- 八个环绕方位：URL 编进 key，URL 变 → 旧元素 leave、新元素 enter -->
     <TransitionGroup name="fade-slot">
       <div v-for="key in visibleSlots" :key="`${key}:${props.images?.[key]}`" class="blink__slot"
-        :class="`blink__slot--${key}`" :style="slotStyle(key)">
-        <img class="blink__gif" :src="props.images?.[key] ?? ''" alt="表情" draggable="false" />
+           :class="`blink__slot--${key}`" :style="slotStyle(key)">
+        <img class="blink__gif" :src="props.images?.[key] ?? ''" alt="" aria-hidden="true" draggable="false" />
       </div>
     </TransitionGroup>
 
@@ -16,8 +16,9 @@
       </div>
     </Transition>
 
+    <!-- 🔧 animationend 校验动画名，避免未来加辅助动画时误删 -->
     <span v-for="h in hearts" :key="h.id" class="blink__heart" :style="heartStyle(h)"
-      @animationend="removeHeart(h.id)">{{ icon }}</span>
+          @animationend="onHeartAnimationEnd($event, h.id)">{{ icon }}</span>
   </div>
 </template>
 
@@ -93,7 +94,7 @@ const props = withDefaults(
     sizes?: Partial<Record<AllSlotKey, number>>
     /** 覆盖单格偏移（px） */
     offsets?: Partial<Record<AllSlotKey, Offset>>
-    /** 环绕整体向内收缩：0 = 贴边（默认），建议 0–35 */
+    /** 环绕整体向内收缩：0 = 贴边（默认），单位 %，建议 0–35 */
     inset?: number
     /** slot 过渡时长（秒），默认 0.35 */
     transitionDuration?: number
@@ -146,8 +147,7 @@ const visibleSlots = computed<SlotKey[]>(() =>
   SLOT_KEYS.filter((k) => !!props.images?.[k]),
 )
 
-function anchorPercent(v: AnchorValue, key: AllSlotKey): string {
-  if (key === 'center') return '50%'
+function anchorPercent(v: AnchorValue): string {
   if (v === 0) return `${props.inset}%`
   if (v === 100) return `calc(100% - ${props.inset}%)`
   return '50%'
@@ -155,13 +155,14 @@ function anchorPercent(v: AnchorValue, key: AllSlotKey): string {
 
 function slotStyle(key: AllSlotKey): Record<string, string> {
   const size = props.sizes[key] ?? DEFAULT_SIZES[key]
-  const offset = props.offsets[key] ?? DEFAULT_OFFSETS[key]
+  // 🔧 对象展开合并：只传 x 时保留 y 的默认值
+  const offset = { ...DEFAULT_OFFSETS[key], ...(props.offsets[key] ?? {}) }
   return {
     '--size': `${size}px`,
-    '--ax': anchorPercent(ANCHOR_X[key], key),
-    '--ay': anchorPercent(ANCHOR_Y[key], key),
-    '--tx': `${offset.x ?? 0}px`,
-    '--ty': `${offset.y ?? 0}px`,
+    '--ax': anchorPercent(ANCHOR_X[key]),
+    '--ay': anchorPercent(ANCHOR_Y[key]),
+    '--tx': `${offset.x}px`,
+    '--ty': `${offset.y}px`,
     '--t-dur': `${props.transitionDuration}s`,
   }
 }
@@ -196,6 +197,12 @@ function removeHeart(id: number): void {
   if (i > -1) hearts.value.splice(i, 1)
 }
 
+/** 🔧 只响应爱心自身动画的结束事件，避免未来加辅助动画时误删 */
+function onHeartAnimationEnd(e: AnimationEvent, id: number): void {
+  if (e.animationName !== 'heart-float') return
+  removeHeart(id)
+}
+
 function heartStyle(h: Heart): Record<string, string> {
   return {
     left: `${h.x}px`,
@@ -218,6 +225,17 @@ defineExpose({
 </script>
 
 <style scoped>
+/* ====== 自定义属性类型声明（让 IDE 认识，并提供运行时初始值） ====== */
+@property --size  { syntax: '<length>';    inherits: false; initial-value: 56px; }
+@property --ax    { syntax: '<percentage>'; inherits: false; initial-value: 50%; }
+@property --ay    { syntax: '<percentage>'; inherits: false; initial-value: 50%; }
+@property --tx    { syntax: '<length>';    inherits: false; initial-value: 0px; }
+@property --ty    { syntax: '<length>';    inherits: false; initial-value: 0px; }
+@property --t-dur { syntax: '<time>';      inherits: false; initial-value: 0.35s; }
+@property --dx    { syntax: '<length>';    inherits: false; initial-value: 0px; }
+@property --rise  { syntax: '<length>';    inherits: false; initial-value: -100px; }
+@property --rot   { syntax: '<angle>';     inherits: false; initial-value: 0deg; }
+
 /* ====== 舞台容器 ====== */
 .blink {
   position: relative;
@@ -226,6 +244,17 @@ defineExpose({
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+
+  /* 🔧 运行时兜底（@property 已给 initial-value，这里再显式声明一层，双重保险） */
+  --size: 56px;
+  --ax: 50%;
+  --ay: 50%;
+  --tx: 0px;
+  --ty: 0px;
+  --t-dur: 0.35s;
+  --dx: 0px;
+  --rise: -100px;
+  --rot: 0deg;
 }
 
 .blink.is-clickable {
@@ -244,15 +273,15 @@ defineExpose({
   height: var(--size, 56px);
   left: var(--ax, 50%);
   top: var(--ay, 50%);
-  transform: translate(-50%, -50%) translate(var(--tx, 0), var(--ty, 0));
+  transform: translate(-50%, -50%) translate(var(--tx, 0px), var(--ty, 0px));
   /* 不拦截 pointerdown，让爱心能落到 .blink 上 */
   pointer-events: none;
 }
 
-.blink__slot--center {
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+/* 🔧 center 不再重写 transform/left/top，让 slotStyle('center') 的 --tx/--ty 生效；
+      这里只关闭内层 img 的漂浮动画 */
+.blink__slot--center .blink__gif {
+  animation: none;
 }
 
 /* =========================================================
@@ -275,12 +304,9 @@ defineExpose({
   object-fit: contain;
   user-select: none;
   animation: float 3s ease-in-out infinite;
-  will-change: transform, opacity;
+  /* 🔧 float 只改 transform，无需 will-change: opacity */
+  will-change: transform;
   pointer-events: none;
-}
-
-.blink__slot--center .blink__gif {
-  animation: none;
 }
 
 .blink__slot--tl .blink__gif {
@@ -324,19 +350,16 @@ defineExpose({
 }
 
 @keyframes float {
-
-  0%,
-  100% {
+  0%, 100% {
     transform: translateY(0);
   }
-
   50% {
     transform: translateY(-6px);
   }
 }
 
 /* =========================================================
- * 爱心层（原 HeartClick）
+ * 爱心层
  * ========================================================= */
 .blink__heart {
   position: absolute;
@@ -349,30 +372,37 @@ defineExpose({
   z-index: 2;
 }
 
+/* 🔧 calc 内的自定义属性都带 fallback，防止变量缺失时整条 transform 失效 */
 @keyframes heart-float {
   0% {
     opacity: 0;
     transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
   }
-
   20% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1.1) rotate(calc(var(--rot) * 0.2));
+    transform: translate(-50%, -50%) scale(1.1) rotate(calc(var(--rot, 0deg) * 0.2));
   }
-
   35% {
     opacity: 1;
-    transform: translate(calc(-50% + var(--dx) * 0.3),
-        calc(-50% + var(--rise) * 0.3)) scale(1.2) rotate(calc(var(--rot) * 0.4));
+    transform: translate(
+      calc(-50% + var(--dx, 0px) * 0.3),
+      calc(-50% + var(--rise, -100px) * 0.3)
+    ) scale(1.2) rotate(calc(var(--rot, 0deg) * 0.4));
   }
-
   100% {
     opacity: 0;
-    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--rise))) scale(0.85) rotate(var(--rot));
+    transform: translate(
+      calc(-50% + var(--dx, 0px)),
+      calc(-50% + var(--rise, -100px))
+    ) scale(0.85) rotate(var(--rot, 0deg));
   }
 }
 
-/* ====== 移动端 ====== */
+/* ====== 移动端 ======
+ * 注意：--size 由 slotStyle() 内联写入，优先级高于这里的 CSS 规则，
+ * 因此单纯在媒体查询里改 --size 不会影响内联尺寸。
+ * 如需真正响应式，请在 JS 里根据视口动态计算 sizes，或改为 rem/vmin 单位。
+ */
 @media (max-width: 520px) {
   .blink {
     width: 160px;
@@ -389,6 +419,12 @@ defineExpose({
   .fade-slot-enter-active,
   .fade-slot-leave-active {
     transition: none;
+  }
+
+  /* 🔧 爱心：给极短时长而非 none —— 保留 animationend 事件，避免 hearts 数组残留。
+      内联 animationDuration 优先级更高，需 !important 覆盖。 */
+  .blink__heart {
+    animation-duration: 0.01s !important;
   }
 }
 </style>

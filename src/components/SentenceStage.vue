@@ -3,7 +3,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import EmojiGif from '@/components/EmojiGif.vue'
 import { getGif } from '@/composables/useGif'
-import { aiEmotionEmoji, aiEmotionGif } from '@/config/aiEmotion'
+import { aiEmotionEmoji } from '@/config/aiEmotion'
 import type { SentencePayload } from '@/types/chat'
 
 /**
